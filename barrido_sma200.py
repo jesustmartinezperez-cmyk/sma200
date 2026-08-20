@@ -8,12 +8,12 @@ Salida: candidatos.csv (siempre) + historico/candidatos_YYYY-MM-DD.csv
 import datetime as dt, os, sys, time
 import pandas as pd
 import yfinance as yf
-
+ 
 DIST_MIN, DIST_MAX = 0.001, 0.02
 DIAS_SIN_TOCAR = 20          # 0 = desactivado
 LOOKBACKS = (5, 10)          # "viene cayendo": cierre < cierre de hace N sesiones, para todos los N
 HIST = "2y"
-
+ 
 WIKI = {
     "sp500":   ("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies", "Symbol", ""),
     "ndx100":  ("https://en.wikipedia.org/wiki/Nasdaq-100", "Ticker", ""),
@@ -27,20 +27,35 @@ WIKI = {
 }
 SUFIJOS = tuple(v[2] for v in WIKI.values() if v[2])
 HDR = {"User-Agent": "Mozilla/5.0 (sma200-screener)"}
-
+ 
+def _columna(tablas, col):
+    """Devuelve la primera columna de tickers encontrada, como Serie de str."""
+    for t in tablas:
+        if isinstance(t.columns, pd.MultiIndex):
+            t = t.copy(); t.columns = [" ".join(str(x) for x in c if str(x) != "nan") for c in t.columns]
+        for c in t.columns:
+            if str(c).strip().lower() in (col.lower(), "ticker", "symbol", "ticker symbol", "epic", "code"):
+                serie = t[c]
+                if isinstance(serie, pd.DataFrame): serie = serie.iloc[:, 0]
+                serie = serie.dropna().astype(str)
+                if len(serie) >= 15 and serie.str.len().median() <= 8:
+                    return serie
+    return None
+ 
 def universo():
+    import requests, io
     ticks = {}
     for nombre, (url, col, suf) in WIKI.items():
         try:
-            import requests, io
             html = requests.get(url, headers=HDR, timeout=30).text
-            t = next(t for t in pd.read_html(io.StringIO(html)) if col in t.columns)
+            serie = _columna(pd.read_html(io.StringIO(html)), col)
+            if serie is None: raise ValueError("no encuentro columna de tickers")
         except Exception as e:
-            print(f"[{nombre}] FALLO Wikipedia: {e}", file=sys.stderr); continue
+            print(f"[{nombre}] FALLO Wikipedia: {type(e).__name__}: {e}", file=sys.stderr); continue
         n = 0
-        for s in t[col].astype(str):
-            s = s.strip().split()[0]
-            if not s or s.lower() == "nan": continue
+        for s in serie:
+            s = str(s).strip().split()[0] if str(s).strip() else ""
+            if not s or s.lower() == "nan" or len(s) > 12: continue
             if suf:
                 base = s
                 for k in SUFIJOS:
@@ -50,8 +65,10 @@ def universo():
                 s = s.replace(".", "-")          # BRK.B -> BRK-B (Yahoo)
             ticks[s] = nombre; n += 1
         print(f"[{nombre}] {n} tickers")
+    if len(ticks) < 300:
+        print("Universo demasiado pequeño, abortando para no escribir un CSV falso", file=sys.stderr); sys.exit(1)
     return ticks
-
+ 
 def descargar(tickers):
     data, fallos = {}, 0
     lote = 150
@@ -75,7 +92,7 @@ def descargar(tickers):
                 fallos += 1
         time.sleep(2)
     return data, fallos
-
+ 
 def evaluar(t, mercado, df):
     c, lo = df["Close"], df["Low"]
     sma = c.rolling(200).mean()
@@ -93,7 +110,7 @@ def evaluar(t, mercado, df):
                 "pend_sma200_%": round((s / float(sma.iloc[-21]) - 1) * 100, 2),
                 "fecha_vela": str(df.index[-1].date())}
     return None
-
+ 
 def main():
     uni = universo()
     tickers = sorted(uni)
@@ -111,6 +128,7 @@ def main():
     out.to_csv("candidatos.csv", index=False)
     out.to_csv(f"historico/candidatos_{hoy}.csv", index=False)
     print(out.to_string(index=False) if filas else "Sin candidatos hoy.")
-
+ 
 if __name__ == "__main__":
     main()
+ 
