@@ -1,0 +1,28 @@
+name: Barrido SMA200
+
+on:
+  schedule:
+    - cron: "30 22 * * 1-5"   # L-V 22:30 UTC = 00:30 Madrid en verano, 23:30 en invierno
+  workflow_dispatch:          # botón "Run workflow" para lanzarlo a mano
+
+permissions:
+  contents: write
+
+jobs:
+  barrido:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python barrido_sma200.py
+      - name: Guardar resultado en el repo
+        run: |
+          git config user.name "sma200-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add candidatos.csv historico/
+          git commit -m "barrido $(date -u +%F)" || echo "sin cambios"
+          git push
