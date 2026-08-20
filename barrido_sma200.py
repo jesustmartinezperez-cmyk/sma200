@@ -1,3 +1,4 @@
+
 """
 Barrido diario SMA200 — USA + Europa — GitHub Actions + yfinance
 Regla: precio entre 0,1% y 2% por encima de la SMA200, viene cayendo
@@ -28,18 +29,31 @@ WIKI = {
 SUFIJOS = tuple(v[2] for v in WIKI.values() if v[2])
 HDR = {"User-Agent": "Mozilla/5.0 (sma200-screener)"}
  
-def _columna(tablas, col):
-    """Devuelve la primera columna de tickers encontrada, como Serie de str."""
+ANCLAS = {"sp500": {"AAPL","MSFT"}, "ndx100": {"AAPL","NVDA"}, "dax": {"SAP","SIE"}, "cac40": {"MC","OR"},
+          "ibex35": {"SAN","ITX"}, "ftse100": {"SHEL","HSBA"}, "aex": {"ASML","INGA"}, "ftsemib": {"ENI","ISP"},
+          "smi": {"NESN","NOVN"}}
+ 
+def _limpia(x):
+    x = str(x).strip()
+    for k in SUFIJOS:
+        if x.endswith(k): x = x[: -len(k)]
+    return x.split()[0] if x else ""
+ 
+def _columna(tablas, nombre):
+    """Devuelve la columna de tickers: la que contiene los tickers ancla del índice."""
+    anclas = ANCLAS.get(nombre, set())
     for t in tablas:
         if isinstance(t.columns, pd.MultiIndex):
-            t = t.copy(); t.columns = [" ".join(str(x) for x in c if str(x) != "nan") for c in t.columns]
+            t = t.copy()
+            t.columns = [" ".join(dict.fromkeys(str(x) for x in c if str(x) != "nan")) for c in t.columns]
         for c in t.columns:
-            if str(c).strip().lower() in (col.lower(), "ticker", "symbol", "ticker symbol", "epic", "code"):
-                serie = t[c]
-                if isinstance(serie, pd.DataFrame): serie = serie.iloc[:, 0]
-                serie = serie.dropna().astype(str)
-                if len(serie) >= 15 and serie.str.len().median() <= 8:
-                    return serie
+            serie = t[c]
+            if isinstance(serie, pd.DataFrame): serie = serie.iloc[:, 0]
+            serie = serie.dropna().astype(str)
+            if len(serie) < 15: continue
+            vals = {_limpia(v) for v in serie}
+            if anclas and anclas <= vals:
+                return serie
     return None
  
 def universo():
@@ -48,7 +62,7 @@ def universo():
     for nombre, (url, col, suf) in WIKI.items():
         try:
             html = requests.get(url, headers=HDR, timeout=30).text
-            serie = _columna(pd.read_html(io.StringIO(html)), col)
+            serie = _columna(pd.read_html(io.StringIO(html)), nombre)
             if serie is None: raise ValueError("no encuentro columna de tickers")
         except Exception as e:
             print(f"[{nombre}] FALLO Wikipedia: {type(e).__name__}: {e}", file=sys.stderr); continue
@@ -60,6 +74,7 @@ def universo():
                 base = s
                 for k in SUFIJOS:
                     if base.endswith(k): base = base[: -len(k)]
+                base = base.replace(".", "-")    # BT.A -> BT-A (Yahoo)
                 s = base + suf
             else:
                 s = s.replace(".", "-")          # BRK.B -> BRK-B (Yahoo)
