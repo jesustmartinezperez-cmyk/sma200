@@ -1,3 +1,1 @@
 ticker,mercado,cierre,sma200,dist_%,ret5d_%,ret10d_%,pend_sma200_%,fecha_vela,fecha_barrido,universo,sin_datos
-NVAX,russell2000,9.4,9.25,1.63,-13.12,-25.75,5.03,2026-10-26,2026-10-27,2731,66
-KRYS,russell2000,313.66,307.62,1.96,-2.06,-5.54,2.65,2026-10-26,2026-10-27,2731,66
