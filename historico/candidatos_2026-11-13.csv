@@ -1,0 +1,3 @@
+ticker,mercado,cierre,sma200,dist_%,ret5d_%,ret10d_%,pend_sma200_%,fecha_vela,fecha_barrido,universo,sin_datos
+ONB,russell2000,24.94,24.51,1.75,-0.44,-1.15,0.97,2026-11-12,2026-11-13,2723,65
+NPK,russell2000,140.3,137.73,1.87,-0.23,-7.56,2.39,2026-11-12,2026-11-13,2723,65
